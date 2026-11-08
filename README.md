@@ -8,7 +8,8 @@ AI image generation app for Android, written in Kotlin with Jetpack Compose.
 - **Inpainting** ("Edit area"): paint over part of an image with your finger and describe what goes there
 - **Gallery**: every result saved on the phone with its prompt and settings; favorites, share, save to Pictures, copy prompt, reuse seed, remix
 - **On-device generation (default)**: Stable Diffusion 1.5 running offline on the phone via Google's MediaPipe Image Generator, with live preview, step control and cancel
-- **Pluggable backends**: on-device, Stability AI, OpenAI (gpt-image-1), and an offline Demo backend
+- **ComfyUI node workflows**: drive your own ComfyUI server (home PC over Wi-Fi, or a cloud GPU such as RunPod). Import any workflow exported with *Export (API)*, including custom nodes, LoRAs, ControlNets, SDXL and Flux; the app fills in prompt, negative prompt, seed, steps, size, batch and checkpoint. Live progress over ComfyUI's websocket.
+- **Pluggable backends**: on-device, ComfyUI, Stability AI, OpenAI (gpt-image-1), and an offline Demo backend
 
 ## Architecture
 ```
@@ -17,6 +18,8 @@ ui/ (Compose)            Create · Gallery · Settings, single-activity, bottom 
 backend/
   ImageBackend           interface: capabilities + suspend generate(request, onProgress)
   OnDeviceBackend        MediaPipe Image Generator, SD 1.5, 512x512
+  ComfyUiBackend         /prompt, /history, /view, /upload/image, /ws on your ComfyUI server
+  ComfyWorkflows         built-in workflows + patching of imported API-format workflows
   StabilityBackend       REST v2beta (core / ultra / SD 3.5, edit/inpaint)
   OpenAiBackend          /v1/images/generations and /edits
   DemoBackend            offline procedural images
@@ -50,6 +53,14 @@ You can install several models side by side and switch between them on the Creat
 Limits: 512x512, text-to-image only (Vary and Edit area need a cloud backend), recent phone with 8 GB+ RAM.
 Note: Google marks the MediaPipe Image Generator as deprecated and no longer maintained. It still works, and the
 backend is isolated in `OnDeviceBackend.kt` so it can be swapped (e.g. for a Qualcomm QNN or ONNX runtime) later.
+
+## ComfyUI
+1. Run ComfyUI somewhere with a GPU. On a home PC start it with `--listen` (e.g. `python main.py --listen`) so the phone can reach it at `http://<pc-ip>:8188`.
+   On RunPod, use a ComfyUI template and paste the pod's port-8188 proxy URL.
+2. In the app: **Settings > ComfyUI server**, enter the address, tap **Connect & load models**, choose **ComfyUI** as the backend.
+3. Optional: in ComfyUI open your node workflow, **Workflow > Export (API)**, and import the .json in Settings.
+   The app finds nodes by type: `CLIPTextEncode` wired to a sampler's positive/negative input gets the prompts, `KSampler*` gets seed/steps,
+   `EmptyLatentImage` gets size/batch, `CheckpointLoaderSimple` gets the chosen checkpoint, `LoadImage` gets the source image for Vary.
 
 ## Using it
 For cloud generation, open Settings, paste a Stability AI key (platform.stability.ai) or OpenAI key, pick that backend, then generate.

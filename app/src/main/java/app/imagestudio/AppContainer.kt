@@ -2,6 +2,7 @@ package app.imagestudio
 
 import android.app.Application
 import android.content.Context
+import app.imagestudio.backend.ComfyUiBackend
 import app.imagestudio.backend.DemoBackend
 import app.imagestudio.backend.ImageBackend
 import app.imagestudio.backend.OnDeviceBackend
@@ -22,6 +23,13 @@ class AppContainer(private val context: Context) {
 
     fun backends(s: Settings): List<ImageBackend> = listOf(
         onDevice,
+        ComfyUiBackend(
+            serverUrl = s.comfyUrl,
+            token = s.comfyToken,
+            customWorkflow = s.comfyWorkflow.ifBlank { null },
+            customWorkflowName = s.comfyWorkflowName.ifBlank { null },
+            checkpoints = s.comfyCheckpoints,
+        ),
         StabilityBackend(s.stabilityKey),
         OpenAiBackend(s.openAiKey, ImageUtils::whiteMaskToAlphaMask),
         DemoBackend(),
