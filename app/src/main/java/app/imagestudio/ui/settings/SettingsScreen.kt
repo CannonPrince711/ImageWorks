@@ -33,6 +33,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.imagestudio.container
+import app.imagestudio.backend.ComfyUiBackend
+import app.imagestudio.backend.ComfyWorkflows
 import app.imagestudio.data.LocalModel
 import app.imagestudio.data.ModelManager
 import app.imagestudio.data.ModelTask
@@ -72,6 +74,8 @@ fun SettingsScreen() {
         }
 
         OnDeviceModelSection()
+
+        ComfySection(s)
 
         Text("API keys (optional cloud backends)", style = MaterialTheme.typography.titleMedium)
         Text("Keys stay on this phone and are sent only to the provider they belong to.", style = MaterialTheme.typography.bodySmall)
@@ -177,4 +181,73 @@ private fun OnDeviceModelSection() {
             dismissButton = { TextButton(onClick = { renaming = null }) { Text("Cancel") } },
         )
     }
+}
+
+@Composable
+private fun ComfySection(s: Settings) {
+    val ctx = LocalContext.current
+    val c = ctx.container
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf<String?>(null) }
+    var testing by remember { mutableStateOf(false) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = runCatching {
+                val text = ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() }
+                ComfyWorkflows.parse(text) // validates the format
+                val name = ctx.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { cur -> if (cur.moveToFirst()) cur.getString(0) else null }?.removeSuffix(".json") ?: "Custom workflow"
+                c.settings.setComfyWorkflow(name, text)
+                name
+            }
+            status = result.fold({ "Workflow \"$it\" imported." }, { it.message ?: "Couldn't read that workflow." })
+        }
+    }
+
+    Text("ComfyUI server (node workflows)", style = MaterialTheme.typography.titleMedium)
+    Text(
+        "Run your own ComfyUI on a PC with an NVIDIA GPU or on a cloud GPU (e.g. RunPod) and drive it from here. " +
+            "On a home PC start ComfyUI with --listen so the phone can reach it over Wi-Fi.",
+        style = MaterialTheme.typography.bodySmall,
+    )
+    PlainField("Server address, e.g. http://192.168.1.20:8188", s.comfyUrl) { scope.launch { c.settings.setComfyUrl(it) } }
+    KeyField("Access token (optional)", s.comfyToken) { scope.launch { c.settings.setComfyToken(it) } }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Button(enabled = !testing && s.comfyUrl.startsWith("http"), onClick = {
+            testing = true
+            scope.launch {
+                status = runCatching { ComfyUiBackend(s.comfyUrl, s.comfyToken).fetchCheckpoints() }.fold(
+                    { list -> c.settings.setComfyCheckpoints(list); "Connected. ${list.size} checkpoint(s) found." },
+                    { "Couldn't connect: ${it.message}" },
+                )
+                testing = false
+            }
+        }) { Text(if (testing) "Connecting…" else "Connect & load models") }
+    }
+    Text(
+        if (s.comfyWorkflow.isBlank()) "Workflow: built-in (text, vary and edit area)" else "Workflow: ${s.comfyWorkflowName}",
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Text(
+        "To use your own nodes, open the workflow in ComfyUI, choose Workflow > Export (API), and import that .json here. " +
+            "Prompt, negative prompt, seed, steps, size and checkpoint are filled in automatically.",
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { picker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }) { Text("Import workflow") }
+        if (s.comfyWorkflow.isNotBlank()) {
+            TextButton(onClick = { scope.launch { c.settings.setComfyWorkflow("", "") } }) { Text("Use built-in") }
+        }
+    }
+    status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+}
+
+@Composable
+private fun PlainField(label: String, saved: String, onSave: (String) -> Unit) {
+    var text by remember { mutableStateOf(saved) }
+    OutlinedTextField(
+        value = text, onValueChange = { text = it; onSave(it) }, label = { Text(label) },
+        singleLine = true, modifier = Modifier.fillMaxWidth(),
+    )
 }
