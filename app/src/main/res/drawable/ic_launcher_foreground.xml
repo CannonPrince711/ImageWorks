@@ -1,0 +1,9 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Sparkle -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M54,28 L59,47 L78,54 L59,61 L54,80 L49,61 L30,54 L49,47 Z" />
+    <path android:fillColor="#FFFFC56E"
+        android:pathData="M74,30 L76,36 L82,38 L76,40 L74,46 L72,40 L66,38 L72,36 Z" />
+</vector>
