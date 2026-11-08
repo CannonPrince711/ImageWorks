@@ -5,6 +5,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write  # publish the APK as a release on main
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,3 +28,14 @@ jobs:
           path: |
             app/build/outputs/apk/debug/*.apk
             app/build/outputs/apk/release/*.apk
+      # Every build of main becomes a release with a phone-friendly download link.
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk ImageStudio.apk
+          gh release create "build-${{ github.run_number }}" ImageStudio.apk \
+            --title "Image Studio build ${{ github.run_number }}" \
+            --notes "Install ImageStudio.apk on your phone. Built from ${{ github.sha }}." \
+            --latest
